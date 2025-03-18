@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 def filter_discard(somvar_dict,discard_list):
     """
     Filters out specific somatic variant sites from a given dictionary based on a discard list.
@@ -57,7 +58,8 @@ def load_discard_csv(sample_folder,
 
 def load_discard_list(folder="./test_conservative_noTGCA", 
                       prefix="test_out",
-                      simple=True):
+                      simple=True,
+                      verbose=True):
     """
     Aggregates discarded somatic variant site identifiers from multiple files within a folder.
 
@@ -73,6 +75,10 @@ def load_discard_list(folder="./test_conservative_noTGCA",
     sv_discard = []
     for i in [j for j in  os.listdir(folder) if j.startswith(prefix)]:
         l = os.path.join(folder, i)
+        if verbose==True:
+            print(f'loading data from {l}')
         sv_discard = sv_discard + load_discard_csv(sample_folder=l)
+        if verbose==True:
+            print('done!')
     sv_discard = list(set(sv_discard))
     return sv_discard
