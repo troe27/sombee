@@ -16,10 +16,10 @@ def filter_by_bed(somvar_dict, bed, buffer=0, return_sv=False):
     # Query positions
     filt_sites = []
     filt_svdict = {}
-    for sample, dataframe in svdict.items():
+    for sample, dataframe in somvar_dict.items():
         filt_sv = []
         for i,k in dataframe.iterrows():
-            if bool(treedict[k.chrom][int(k.chromStart)])==True: # True if position is in any interval
+            if bool(treedict[k.chrom][int(k.POS)])==True: # True if position is in any interval
                 filt_sites.append(k['ID'])
                 filt_sv.append(k)
         filt_svdict[sample] = pd.DataFrame(filt_sv)

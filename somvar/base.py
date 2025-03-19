@@ -58,7 +58,7 @@ def load_dict(folder="./test_conservative_noTGCA", prefix="test_out", simple=Fal
     for i in [j for j in  os.listdir(folder) if j.startswith(prefix)]:
         l = os.path.join(folder, i)
         svs = load_csv(sample_folder=l, simple=simple)
-        svs["ID"] = [str(k.chrom)+':'+str(k.chromStart) for i,k in svs.iterrows()]
+        svs["ID"] = [str(k.chrom)+':'+str(int(k.chromStart)+1) for i,k in svs.iterrows()]
         somvar_dict[i]=svs
     return somvar_dict
 

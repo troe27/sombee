@@ -1,33 +1,5 @@
 import os
 import pandas as pd
-def filter_discard(somvar_dict,discard_list):
-    """
-    Filters out specific somatic variant sites from a given dictionary based on a discard list.
-    
-    Parameters:
-    somvar_dict (dict): A dictionary where keys are sample identifiers and values are lists of 
-                        variant data strings in the format "chromosome,position,additional_info".
-    discard_list (list): A list of variant site identifiers in the format "chromosome:position" 
-                         that should be removed.
-    
-    Returns:
-    tuple: 
-        - discarded_somvar (list): A list of discarded variants, each represented as a [sample_id, "chromosome:position"] pair.
-        - filtered_somvar_dict (dict): A dictionary similar to `somvar_dict` but with the specified 
-                                       variant sites removed.
-    """
-    discardIDs = discard_list
-    filtered_somvar_dict = {}
-    discarded_somvar = []
-    for key, item in somvar_dict.items():
-        somID = [i.split(",")[0]+':'+i.split(",")[1] for i in item]
-        sites = [i for i in somID if i in discardIDs]
-        
-        filt_somvar = [i for i in item if i.split(",")[0]+':'+i.split(",")[1] not in discardIDs ]
-        filtered_somvar_dict[key] = filt_somvar
-        discarded_somvar =  discarded_somvar + [[key, i] for i in sites]
-    return discarded_somvar, filtered_somvar_dict
-
 
 def load_discard_csv(sample_folder,
                      file_loc="tmpNanoSeq/post/discardedvariants.csv",
@@ -50,10 +22,13 @@ def load_discard_csv(sample_folder,
     discard_file = sample_file = os.path.join(sample_folder, file_loc)
     discard = pd.read_csv(sample_file)
     discard = discard.drop_duplicates(subset=["chrom", "chromStart"])
+    discard['POS'] = discard['chromStart']+1
+    discard["ID"] = [k['chrom']+':'+str(discard.POS) for _,k in discard.iterrows()]
+    
     if simple==False:
         return discard
     else:
-        return [str(k.chrom)+':'+str(k.chromStart) for i,k in discard.iterrows()]
+        return list(discard["ID"])
 
 
 def load_discard_list(folder="./test_conservative_noTGCA", 
