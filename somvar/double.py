@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-def get_double_sites(somvar_dict, verbose=False):
+def get_double_sites(somvar_dict, verbose=False, return_only_IDs=True):
     """
     Identifies variants that share the same duplex barcode within a sample but occur at different positions.
 
@@ -46,4 +46,8 @@ def get_double_sites(somvar_dict, verbose=False):
     s_r_IDs["ID"] = [str(k.CHROM)+':'+str(k.POS) for i,k in s_r_IDs.iterrows()]
     multi_bc = pd.DataFrame([k for i,k in pd.DataFrame(shared_reads_info).iterrows() if k[5]>0])
     multi_bc.columns = ["sample", "CHROM", "POS1", "POS2", "UMI", "DIST"]
-    return s_r_IDs, multi_bc    
+
+    if return_only_IDs==True:
+        return list(s_r_IDs['ID'].drop_duplicates())
+    else:
+        return s_r_IDs, multi_bc    

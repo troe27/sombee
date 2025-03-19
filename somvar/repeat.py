@@ -1,38 +1,56 @@
-from intervaltree import IntervalTree
 import pandas as pd
+import numpy as np
 
-def filter_by_bed(somvar_dict, bed, buffer=0, return_sv=False):
+def filter_by_bed(bed, somvar_dict, ret_val='filtered_list'):
+    """
+
+    """
+    
+    if ret_val not in ['filtered_n', 'filtered_list', 'full']:
+        raise IOError('ret_val needs to be one of the following: "filtered_n", "filtered_list" or "full".')
+    
     if isinstance(bed, str)==True:
         bdata = pd.read_csv(bed, sep=' ', skipinitialspace=True)
     else:
         bdata=bed
         bdata.columns=['CHROM', 'POS1', 'POS2']
+
+    svdf = pd.concat([item for _,item in somvar_dict.items()])
+    svdf.drop_duplicates(subset='pyrkey',inplace=True)
+    svdf.rename(columns={'chrom':'CHROM'}, inplace=True)
+
+    vars = []
+    for chromosome in svdf.CHROM.drop_duplicates():
+        intervals_ss = bdata.loc[bdata['CHROM']==chromosome]
+        variants_ss = svdf.loc[svdf.CHROM==chromosome]
+        for _, variant in variants_ss.iterrows():
+            POS_var=variant.POS
+            interval_match = intervals_ss.loc[intervals_ss.POS1<=POS_var].loc[intervals_ss.POS2>=POS_var]
+            if len(interval_match)>0:
+                vars.append(list(variant)+[True]+list(interval_match.iloc[0,:]))
+            else:
+                vars.append(list(variant)+[False]+[np.nan for i in range(intervals_ss.shape[1])])
+    vardf = pd.DataFrame(vars , columns=list(variants_ss.columns)+['filtered']+['interval_'+i for i in intervals_ss.columns])
     
-    # Build the tree
-    treedict = {}
-    for chromosome in bdata.CHROM.drop_duplicates():
-        tree = IntervalTree([it.Interval(int(k.POS1)-buffer, int(k.POS2) + 1+buffer) for i,k in bdata.loc[bdata.CHROM==chromosome].iterrows()])  # +1 to make stop inclusive
-        treedict[chromosome]=tree
-    # Query positions
-    filt_sites = []
-    filt_svdict = {}
-    for sample, dataframe in somvar_dict.items():
-        filt_sv = []
-        for i,k in dataframe.iterrows():
-            if bool(treedict[k.chrom][int(k.POS)])==True: # True if position is in any interval
-                filt_sites.append(k['ID'])
-                filt_sv.append(k)
-        filt_svdict[sample] = pd.DataFrame(filt_sv)
-    if return_sv==True:
-        return filt_sites, filt_svdict
+    if ret_val=='filtered_n':
+        return vardf['filtered'].sum()
+    elif ret_val=='filtered_list':
+        return list(vardf.loc[vardf.filtered==True]['ID'])
     else:
-        return filt_sites
-        
-        
-def sv_filter_by_repeat(repeatfile, return_sv=False):
-    repeatdf = pd.read_csv(bedfile, sep=' ', skipinitialspace=True)
-    bed =  repeatdf[['query-sequence', 'position_query_begin','position_query_end']]
-    if return_sv==True
-        return filter_by_bed(bed=bed, return_sv=True)
+        return vardf
+
+
+def filter_repeats(repeatfile, somvar_dict, return_val='list'):
+    """
+
+    """
+
+    if return_val not in ['filtered_n', 'filtered_list', 'full']:
+        raise IOError('return_val needs to be one of the following: "filtered_n", "filtered_list" or "full".')
+    repeats = pd.read_csv(repeatfile, sep=' ', skipinitialspace=True)
+    bed = repeats[['query-sequence', 'position_query_begin','position_query_end']]
+    if return_val in {'filtered_n':'', 'filtered_list':'',}:
+        return filter_by_bed(bed=bed, somvar_dict=somvar_dict, ret_val=return_val)
     else:
-        return filter_by_bed(bed=bed)
+        variants_df =  filter_by_bed(bed=bed, somvar_dict=somvar_dict, ret_val=return_val)
+        return pd.merge(left=variants_df, right=repeats, how='left', right_on=['query-sequence', 'position_query_begin','position_query_end'], left_on=['CHROM', 'interval_POS1', 'interval_POS2'])
