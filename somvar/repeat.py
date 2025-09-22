@@ -1,24 +1,28 @@
 import pandas as pd
 import numpy as np
-
-def filter_by_bed(bed, somvar_dict, ret_val='filtered_list'):
+from . import base
+def filter_by_bed(bed, somvar_dict,sv_fmt="dict" ret_val='filtered_list'):
     """
 
     """
     
     if ret_val not in ['filtered_n', 'filtered_list', 'full']:
         raise IOError('ret_val needs to be one of the following: "filtered_n", "filtered_list" or "full".')
+
+      if sv_fmt not in ['dict', 'df',]:
+        raise IOError('sv_fmt needs to be one of the following: "dict" or "df".')
     
     if isinstance(bed, str)==True:
         bdata = pd.read_csv(bed, sep=' ', skipinitialspace=True)
     else:
         bdata=bed
         bdata.columns=['CHROM', 'POS1', 'POS2']
-
-    svdf = pd.concat([item for _,item in somvar_dict.items()])
-    svdf.drop_duplicates(subset='pyrkey',inplace=True)
-    svdf.rename(columns={'chrom':'CHROM'}, inplace=True)
-
+    if sv_fmt =="dict":
+        svdf = pd.concat([item for _,item in somvar_dict.items()])
+        svdf.drop_duplicates(subset='pyrkey',inplace=True)
+        svdf.rename(columns={'chrom':'CHROM'}, inplace=True)
+    else:
+        svdf = somvar_dict
     vars = []
     for chromosome in svdf.CHROM.drop_duplicates():
         intervals_ss = bdata.loc[bdata['CHROM']==chromosome]
