@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from . import base
-def filter_by_bed(bed, somvar_dict,sv_fmt="dict" ret_val='filtered_list'):
+def filter_by_bed(bed, somvar_dict,sv_fmt="dict", ret_val='filtered_list'):
     """
 
     """
@@ -9,8 +9,8 @@ def filter_by_bed(bed, somvar_dict,sv_fmt="dict" ret_val='filtered_list'):
     if ret_val not in ['filtered_n', 'filtered_list', 'full']:
         raise IOError('ret_val needs to be one of the following: "filtered_n", "filtered_list" or "full".')
 
-      if sv_fmt not in ['dict', 'df',]:
-        raise IOError('sv_fmt needs to be one of the following: "dict" or "df".')
+        if sv_fmt not in ['dict', 'df',]:
+            raise IOError('sv_fmt needs to be one of the following: "dict" or "df".')
     
     if isinstance(bed, str)==True:
         bdata = pd.read_csv(bed, sep=' ', skipinitialspace=True)
