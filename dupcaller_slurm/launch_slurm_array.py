@@ -42,7 +42,7 @@ def main():
     parser.add_argument("--samples-tsv", default="samples.tsv")
     parser.add_argument("--project-id",default=None,help="Slurm project/account ID to charge (adds #SBATCH --account=ID).",)
     parser.add_argument('--env', default=None, help='specify mamba/conda environment to use')
-
+    parser.add_argument('--logdir', default='logs', help='directory to deposit the logfiles from slurm')
     args = parser.parse_args()
 
     # 1) discover samples
@@ -81,8 +81,8 @@ def main():
 {account_line}#SBATCH --cpus-per-task={args.slurm_cpus_per_task}
 #SBATCH --time={args.slurm_time}
 #SBATCH --array={array_spec}
-#SBATCH --output=logs/{args.job_name}_%A_%a.out
-#SBATCH --error=logs/{args.job_name}_%A_%a.err
+#SBATCH --output={args.logdir}/{args.job_name}_%A_%a.out
+#SBATCH --error={args.logdir}/{args.job_name}_%A_%a.err
 
 set -euo pipefail
 
@@ -121,7 +121,7 @@ module load SAMtools
 """
 
     # 4) write sbatch script to disk
-    Path("logs").mkdir(exist_ok=True)
+    Path(args.logdir).mkdir(exist_ok=True)
     sbatch_file = Path("run_array.sbatch")
     sbatch_file.write_text(sbatch_script)
     print(f"Wrote {sbatch_file}")
