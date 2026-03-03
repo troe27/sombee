@@ -1,0 +1,30 @@
+# get raw data from dds
+module load dds-cli
+dds data get -p ngisthlm02230 -a --verify-checksum -d ./data/raw
+# get my processing code
+git clone git@github.com:troe27/sombee.git
+
+# get Dupcaller
+git clone git@github.com:troe27/DupCaller.git
+## install Mamba
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+
+## install Dupcaller and its dependencies
+### dupcaller
+cd Dupcaller
+python setup.py install
+### dependencies
+mamba install h5py
+mamba install biopython
+mamba install matplotlib
+mamba install pandas
+mamba install -c bioconda pysam
+mamba install scipy
+
+# install treeoflife repo
+mamba create -n tol3.9 python=3.9
+mamba activate tol3.9
+cd treeoflife
+mamba install poetry
+poetry install --no-root
