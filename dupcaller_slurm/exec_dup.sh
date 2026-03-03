@@ -1,0 +1,12 @@
+python launch_dupcaller_array.py \
+  --sample-id-csv /home/tilman/osmia_store/20250804_nanoseq/Beetle_IDs.csv \
+  --bam-folder ./test-data/bams \
+  --dupcaller-path /home/tilman/osmia_store/dupcaller-test/DupCaller/build/scripts-3.10/DupCaller.py \
+  --ref-fasta /home/tilman/nanoseq_test/data/ref/GCF_003254395.2_Amel_HAv3.1_genomic.fna \
+  --germline-vcf /media/osmia/taliadoros/raw_data/aligned/sorted/RGed2/merged/BetterB_Batch1_2_3_full_geno_HQ.vcf.gz \
+  --panel-bed /home/tilman/nanoseq_test/data/ref/ref.bed \
+  --output-folder ./test-data/output \
+  --max-parallel 6 \
+  --slurm-cpus-per-task 16 \
+  --job-name dupcaller_call \
+  --project-id your_project_123

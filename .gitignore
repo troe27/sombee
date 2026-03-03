@@ -60,6 +60,9 @@ pyvenv.cfg
 *.sqlite3
 *.db
 *.db-journal
+*.out
+*.err
+*.sbatch
 
 # Unit test / coverage reports
 .coverage
