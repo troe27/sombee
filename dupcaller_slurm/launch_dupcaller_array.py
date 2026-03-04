@@ -2,185 +2,181 @@
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 
 import pandas as pd
 from Bio import SeqIO
 
 
-def load_matched_normal_dict(sample_id_csv: str) -> Dict[str, Dict[str, Any]]:
+def load_sample_normal_dict(sample_id_tsv: str) -> Dict[str, Dict[str, str]]:
     """
-    Build a dict:
-      outer-key: 'Sample' (logical sample name)
-      value: {'sample': NGI Sample ID (diluted),
-              'matched_normal': NGI Sample ID (undiluted),
-              'caste': caste}
+    Input TSV must contain:
+      - NGI_ID (used to locate BAM: <NGI_ID>.mkdped.bam)
+      - sample_type ('sample' or 'matched_normal')
+      - sample_ID (logical pairing id)
+
+    Returns:
+      { sample_ID: {'sample': <NGI_ID>, 'normal': <NGI_ID>} }
     """
-    df = pd.read_csv(sample_id_csv)
-    mn_dict: Dict[str, Dict[str, Any]] = {}
+    df = pd.read_csv(sample_id_tsv, sep="\t", dtype=str)
 
-    for i in df["Sample"].drop_duplicates():
-        diluted = df[(df["Sample"] == i) & (df["Dilution"] == "diluted")]
-        undiluted = df[(df["Sample"] == i) & (df["Dilution"] == "undiluted")]
+    required = {"NGI_ID", "sample_type", "sample_ID"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in {sample_id_tsv}: {sorted(missing)}")
 
-        if diluted.empty or undiluted.empty:
-            print(f"[WARN] Sample {i}: missing diluted or undiluted entry, skipping")
+    df = df.copy()
+    df["NGI_ID"] = df["NGI_ID"].str.strip()
+    df["sample_type"] = df["sample_type"].str.strip()
+    df["sample_ID"] = df["sample_ID"].str.strip()
+
+    sn: Dict[str, Dict[str, str]] = {}
+
+    for sample_id, sub in df.groupby("sample_ID", sort=False):
+        sample_rows = sub[sub["sample_type"] == "sample"]
+        normal_rows = sub[sub["sample_type"] == "matched_normal"]
+
+        if sample_rows.empty or normal_rows.empty:
+            print(f"[WARN] sample_ID {sample_id}: missing sample or matched_normal entry, skipping")
             continue
+        if len(sample_rows) > 1:
+            print(f"[WARN] sample_ID {sample_id}: multiple 'sample' rows; using first")
+        if len(normal_rows) > 1:
+            print(f"[WARN] sample_ID {sample_id}: multiple 'matched_normal' rows; using first")
 
-        s = diluted["NGI Sample ID"].iloc[0]
-        caste = diluted["Caste"].iloc[0]
-        mn = undiluted["NGI Sample ID"].iloc[0]
+        sn[sample_id] = {
+            "sample": sample_rows["NGI_ID"].iloc[0],
+            "normal": normal_rows["NGI_ID"].iloc[0],
+        }
 
-        mn_dict[i] = {"sample": s, "matched_normal": mn, "caste": caste}
-
-    return mn_dict
+    return sn
 
 
-def generate_panel_if_missing(ref_fasta: str, panel_bed: str) -> None:
+def ensure_panel_bed(ref_fasta: str, panel_bed: str) -> None:
     """
-    If panel_bed does not exist, generate a BED that covers all chromosomes
-    in ref_fasta: one row per record: <chrom>  0  len(seq)
+    If panel_bed doesn't exist, create a BED that spans each contig in ref_fasta:
+      <contig>  0  <len>
     """
     panel_path = Path(panel_bed)
     if panel_path.exists():
         print(f"[INFO] Panel BED exists: {panel_path}")
         return
 
-    print(f"[INFO] Generating panel BED at {panel_path}")
+    print(f"[INFO] Creating panel BED: {panel_path}")
     panel_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with panel_path.open("w") as handle:
-        for record in SeqIO.parse(ref_fasta, "fasta"):
-            chrom_id = record.id.split(" ")[0]
-            stop = len(record.seq)
-            handle.write("\t".join([chrom_id, "0", str(stop)]) + "\n")
+    with panel_path.open("w") as out:
+        for rec in SeqIO.parse(ref_fasta, "fasta"):
+            contig = rec.id.split(" ")[0]
+            out.write(f"{contig}\t0\t{len(rec.seq)}\n")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Prepare DupCaller tumor/normal pairs and submit Slurm array for 'call' step."
-    )
-    parser.add_argument("--sample-id-csv", required=True,
-                        help="Beetle_IDs.csv with Sample / Dilution / NGI Sample ID / Caste.")
-    parser.add_argument("--bam-folder", required=True,
-                        help="Folder with *.mkdped.bam files from per-sample pipeline.")
-    parser.add_argument("--dupcaller-path", required=True,
-                        help="Path to DupCaller.py")
-    parser.add_argument("--ref-fasta", required=True,
-                        help="Reference FASTA used for alignment.")
-    parser.add_argument("--germline-vcf", required=True,
-                        help="Germline VCF for DupCaller.")
-    parser.add_argument("--panel-bed", required=True,
-                        help="BED file with panel regions; will be created if missing.")
-    parser.add_argument("--output-folder", required=True,
-                        help="Folder where DupCaller call outputs should go.")
+def build_pairs_tsv(
+    sn_dict: Dict[str, Dict[str, str]],
+    bam_folder: Path,
+    pairs_path: Path,
+    ) -> int:
+    """
+    Write pairs TSV: sample_id, sample_bam, normal_bam.
+    Returns number of valid pairs written.
+    """
+    n_pairs = 0
+    with pairs_path.open("w") as out:
+        out.write("sample_id\tsample_bam\tnormal_bam\n")
 
-    parser.add_argument("--pairs-tsv", default="pairs.tsv",
-                        help="Output TSV listing logical_sample, tumor_bam, normal_bam.")
-    parser.add_argument("--job-name", default="dupcaller_call",
-                        help="Slurm job name.")
-    parser.add_argument("--max-parallel", type=int, default=6,
-                        help="Max concurrent array tasks (% limit).")
-    parser.add_argument("--slurm-time", default="24:00:00")
-    parser.add_argument("--slurm-cpus-per-task", type=int, default=16)
-    parser.add_argument(
-        "--project-id",
-        default=None,
-        help="Slurm project/account ID to charge (adds #SBATCH --account=ID).",
-    )
+        for sample_id, ids in sn_dict.items():
+                sample_matches = list(bam_folder.glob(f"{ids['sample']}_*.mkdped.bam"))
+                normal_matches = list(bam_folder.glob(f"{ids['normal']}_*.mkdped.bam"))
 
-    args = parser.parse_args()
+                if len(sample_matches) == 0:
+                        print(f"[WARN] No sample BAM found for {sample_id} (pattern {ids['sample']}_*.mkped.bam), skipping")
+                        continue
 
-    bam_folder = Path(args.bam_folder)
-    bam_folder.mkdir(parents=True, exist_ok=True)
-    output_folder = Path(args.output_folder)
-    output_folder.mkdir(parents=True, exist_ok=True)
+                if len(normal_matches) == 0:
+                        print(f"[WARN] No normal BAM found for {sample_id} (pattern {ids['normal']}_*.mkped.bam), skipping")
+                        continue
 
-    # 1) load tumor/normal mapping
-    mn_dict = load_matched_normal_dict(args.sample_id_csv)
-    print(f"[INFO] Loaded {len(mn_dict)} logical samples with matched normals")
+                if len(sample_matches) > 1:
+                       print(f"[WARN] Multiple sample BAMs found for {sample_id}, using first: {sample_matches[0]}")
 
-    # 2) generate panel bed if needed
-    generate_panel_if_missing(args.ref_fasta, args.panel_bed)
+                if len(normal_matches) > 1:
+                      print(f"[WARN] Multiple normal BAMs found for {sample_id}, using first: {normal_matches[0]}")
 
-    # 3) build pairs.tsv
-    pairs_path = Path(args.pairs_tsv)
-    with pairs_path.open("w") as handle:
-        handle.write("logical_sample\ttumor_bam\tnormal_bam\n")
-        n_pairs = 0
+                sample_bam = sample_matches[0]
+                normal_bam = normal_matches[0]
 
-        for logical_sample, item in mn_dict.items():
-            tumor_bam = bam_folder / f"{item['sample']}.mkdped.bam"
-            normal_bam = bam_folder / f"{item['matched_normal']}.mkdped.bam"
+                out.write(f"{sample_id}\t{sample_bam}\t{normal_bam}\n")
+                n_pairs += 1
 
-            if not tumor_bam.exists():
-                print(f"[WARN] Tumor BAM missing for {logical_sample}: {tumor_bam}, skipping")
-                continue
-            if not normal_bam.exists():
-                print(f"[WARN] Normal BAM missing for {logical_sample}: {normal_bam}, skipping")
-                continue
+    return n_pairs
 
-            handle.write(f"{logical_sample}\t{tumor_bam}\t{normal_bam}\n")
-            n_pairs += 1
 
-    if n_pairs == 0:
-        print("[ERROR] No valid tumor/normal pairs found; aborting.")
-        return
-
-    print(f"[INFO] Wrote {n_pairs} pairs to {pairs_path}")
-
-    array_spec = f"0-{n_pairs - 1}%{args.max_parallel}"
-    account_line = f"#SBATCH --account={args.project_id}\n" if args.project_id else ""
-
-    # 4) build sbatch script
-    sbatch_script = f"""#!/bin/bash
-#SBATCH --job-name={args.job_name}
-{account_line}#SBATCH --cpus-per-task={args.slurm_cpus_per_task}
-#SBATCH --time={args.slurm_time}
+def write_sbatch_script(
+    sbatch_file: Path,
+    *,
+    job_name: str,
+    account_line: str,
+    cpus_per_task: int,
+    slurm_time: str,
+    array_spec: str,
+    logdir: str,
+    pairs_path: Path,
+    dupcaller_path: Path,
+    ref_fasta: Path,
+    germline_vcf: Path,
+    panel_bed: Path,
+    output_folder: Path,
+    env: str
+) -> None:
+    """
+    Create a Slurm array script that reads pairs.tsv and runs DupCaller call.
+    """
+    if env is None:
+        python_cmd = 'python'
+    else:
+        python_cmd = f'mamba run -n {env} python'
+    script = f"""#!/bin/bash
+#SBATCH --job-name={job_name}
+{account_line}#SBATCH --cpus-per-task={cpus_per_task}
+#SBATCH --time={slurm_time}
 #SBATCH --array={array_spec}
-#SBATCH --output=logs/{args.job_name}_%A_%a.out
-#SBATCH --error=logs/{args.job_name}_%A_%a.err
+#SBATCH --output={logdir}/{job_name}_%A_%a.out
+#SBATCH --error={logdir}/{job_name}_%A_%a.err
 
 set -euo pipefail
 
-module load GATK
-module load BWA-mem2
 
 TASK_ID=${{SLURM_ARRAY_TASK_ID}}
-PAIRS_TSV="{pairs_path.resolve()}"
-DUPCALLER_PATH="{Path(args.dupcaller_path).resolve()}"
-REF_FASTA="{Path(args.ref_fasta).resolve()}"
-GERMLINE_VCF="{Path(args.germline_vcf).resolve()}"
-PANEL_BED="{Path(args.panel_bed).resolve()}"
-OUTPUT_FOLDER="{output_folder.resolve()}"
-THREADS={args.slurm_cpus_per_task}
+PAIRS_TSV="{pairs_path}"
+DUPCALLER_PATH="{dupcaller_path}"
+REF_FASTA="{ref_fasta}"
+GERMLINE_VCF="{germline_vcf}"
+PANEL_BED="{panel_bed}"
+OUTPUT_FOLDER="{output_folder}"
+THREADS={cpus_per_task}
 
-# get the line for this task (skip header)
+# line for this task (skip header)
 LINE=$(awk -v line=$((TASK_ID+2)) 'NR==line' "$PAIRS_TSV")
 if [ -z "$LINE" ]; then
     echo "No line for TASK_ID=$TASK_ID" >&2
     exit 1
 fi
 
-logical_sample=$(echo "$LINE" | cut -f1)
-tumor_bam=$(echo "$LINE" | cut -f2)
+sample_id=$(echo "$LINE" | cut -f1)
+sample_bam=$(echo "$LINE" | cut -f2)
 normal_bam=$(echo "$LINE" | cut -f3)
 
-echo "Running DupCaller call for logical sample: $logical_sample"
-echo " Tumor:  $tumor_bam"
-echo " Normal: $normal_bam"
+echo "Running DupCaller call for sample: $sample_id"
+echo " Sample BAM: $sample_bam"
+echo " Normal BAM: $normal_bam"
 
-# regions: all chrom IDs from panel BED (col 1)
+# regions: contig IDs from panel BED (col 1)
 regions=$(cut -f1 "$PANEL_BED" | tr '\\n' ' ')
 
-out_prefix="$OUTPUT_FOLDER/${{logical_sample}}.dupcaller"
+out_prefix="$OUTPUT_FOLDER/${{sample_id}}.dupcaller"
 
-# activate env here if needed
-# module load ...
-# conda activate ...
-
-python "$DUPCALLER_PATH" call \\
-  -b "$tumor_bam" \\
+{python_cmd} "$DUPCALLER_PATH" call \\
+  -b "$sample_bam" \\
   -f "$REF_FASTA" \\
   -r $regions \\
   -o "$out_prefix" \\
@@ -188,11 +184,83 @@ python "$DUPCALLER_PATH" call \\
   -n "$normal_bam" \\
   -g "$GERMLINE_VCF"
 """
-
-    Path("logs").mkdir(exist_ok=True)
-    sbatch_file = Path("run_dupcaller_array.sbatch")
-    sbatch_file.write_text(sbatch_script)
+    sbatch_file.write_text(script)
     print(f"[INFO] Wrote {sbatch_file}")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(
+        description="Prepare DupCaller sample/normal pairs and submit Slurm array for 'call' step."
+    )
+    p.add_argument(
+        "--sample-id-csv",
+        required=True,
+        help="TSV with NGI_ID, sample_type (sample/matched_normal), sample_ID (logical id).",
+    )
+    p.add_argument(
+        "--bam-folder",
+        required=True,
+        help="Folder with *.mkdped.bam named by NGI_ID (e.g. P38907_1008.mkdped.bam).",
+    )
+    p.add_argument("--dupcaller-path", required=True, help="Path to DupCaller.py")
+    p.add_argument("--ref-fasta", required=True, help="Reference FASTA used for alignment.")
+    p.add_argument("--germline-vcf", required=True, help="Germline VCF for DupCaller.")
+    p.add_argument("--panel-bed", required=True, help="BED file with panel regions; created if missing.")
+    p.add_argument("--output-folder", required=True, help="Folder for DupCaller call outputs.")
+
+    p.add_argument("--pairs-tsv", default="pairs.tsv", help="Output TSV listing sample_id, sample_bam, normal_bam.")
+    p.add_argument("--job-name", default="dupcaller_call", help="Slurm job name.")
+    p.add_argument("--max-parallel", type=int, default=6, help="Max concurrent array tasks (% limit).")
+    p.add_argument("--slurm-time", default="24:00:00")
+    p.add_argument("--slurm-cpus-per-task", type=int, default=16)
+    p.add_argument("--project-id", default=None, help="Slurm project/account ID (#SBATCH --account=ID).")
+    p.add_argument("--logdir", default="logs", help="Directory for Slurm stdout/stderr logs.")
+    p.add_argument('--env', default=None, help='name of mamba environment to run command in')
+    args = p.parse_args()
+
+    bam_folder = Path(args.bam_folder)
+    output_folder = Path(args.output_folder)
+    pairs_path = Path(args.pairs_tsv)
+    sbatch_file = Path("run_dupcaller_array.sbatch")
+
+    bam_folder.mkdir(parents=True, exist_ok=True)
+    output_folder.mkdir(parents=True, exist_ok=True)
+    Path(args.logdir).mkdir(parents=True, exist_ok=True)
+
+    # 1) mapping
+    sn_dict = load_sample_normal_dict(args.sample_id_csv)
+    print(f"[INFO] Loaded {len(sn_dict)} logical samples with matched normals")
+
+    # 2) panel BED
+    ensure_panel_bed(args.ref_fasta, args.panel_bed)
+
+    # 3) pairs.tsv
+    n_pairs = build_pairs_tsv(sn_dict, bam_folder, pairs_path)
+    if n_pairs == 0:
+        print("[ERROR] No valid sample/normal pairs found; aborting.")
+        return
+    print(f"[INFO] Wrote {n_pairs} pairs to {pairs_path.resolve()}")
+
+    # 4) sbatch script
+    array_spec = f"0-{n_pairs - 1}%{args.max_parallel}"
+    account_line = f"#SBATCH --account={args.project_id}\n" if args.project_id else ""
+
+    write_sbatch_script(
+        sbatch_file,
+        job_name=args.job_name,
+        account_line=account_line,
+        cpus_per_task=args.slurm_cpus_per_task,
+        slurm_time=args.slurm_time,
+        array_spec=array_spec,
+        logdir=args.logdir,
+        pairs_path=pairs_path.resolve(),
+        dupcaller_path=Path(args.dupcaller_path).resolve(),
+        ref_fasta=Path(args.ref_fasta).resolve(),
+        germline_vcf=Path(args.germline_vcf).resolve(),
+        panel_bed=Path(args.panel_bed).resolve(),
+        output_folder=output_folder.resolve(),
+        env = args.env,
+    )
 
     # 5) submit
     cmd = ["sbatch", str(sbatch_file)]

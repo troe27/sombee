@@ -1,0 +1,14 @@
+python launch_dupcaller_array.py \
+  --sample-id-csv /home/tilman/bees1/private/tilman/nanoseq_batch4/data/somatic_aux_data/batch4_IDs.tsv \
+  --bam-folder /home/tilman/bees1/private/tilman/nanoseq_batch4/data/bams  \
+  --dupcaller-path /home/tilman/miniforge3/bin/DupCaller.py \
+  --ref-fasta /home/tilman/bees1/private/tilman/nanoseq_batch4/data/somatic_aux_data/ref/GCF_003254395.2_Amel_HAv3.1_genomic.fna \
+  --germline-vcf /home/tilman/bees1/private/tilman/nanoseq_batch4/data/BetterB_Batch1_2_3_full_geno_HQ.vcf.gz \
+  --panel-bed /home/tilman/bees1/private/tilman/nanoseq_batch4/data/somatic_aux_data/ref/ref.bed \
+  --output-folder /home/tilman/bees1/private/tilman/nanoseq_batch4/data/output \
+  --max-parallel 99 \
+  --slurm-cpus-per-task 16 \
+  --job-name dupcaller_call \
+  --project-id UPPMAX2025-2-481 \
+  --logdir ./logs \
+  --env base
