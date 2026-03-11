@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import csv
 import math
 import os
 from pathlib import Path
@@ -121,15 +122,16 @@ def write_hdp_matrix(input_path: Path, sample_path: Path, output_path: Path):
     output_samples = natsort.natsorted(list(target_samples))
 
     # Write CSV matrix
-    with open(output_path, "w") as outfile:
-        outfile.write(",".join(["sample"] + SBS52_COLUMNS) + "\n")
+    with open(output_path, "w", newline="") as outfile:
+        writer = csv.writer(outfile)
+        writer.writerow(["sample"] + SBS52_COLUMNS)
 
         for sample in output_samples:
             row_values = [sample] + [
                 str(math.ceil(float(sample_sbs52_counts.get(f"{sample}:{sbs52}", 0))))
                 for sbs52 in SBS52_COLUMNS
             ]
-            outfile.write(",".join(row_values) + "\n")
+            writer.writerow(row_values)
 
     # Helpful stderr summary
     missing_samples = sorted(target_samples - matched_samples)
