@@ -233,10 +233,14 @@ def load_sbs96_counts(
     else:
         chroms = sequence_lookup.references
     if is_sample_reference_sample:
+        if sample_name is None:
+            raise ValueError("--sample is required when --is-sample-reference-sample is used")
+        if sample_name not in variant_records.header.samples:
+            raise ValueError(f"--sample '{sample_name}' not found in VCF header samples")
         for chrom in chroms:
             for record in variant_records.fetch(chrom):
                 if is_pass(record) and is_biallelic_snp(record):
-                    sample_gt = record.samples[sample]["GT"]
+                    sample_gt = record.samples[sample_name]["GT"]
                     if not has_alt_allele(sample_gt):  # now also includes 1/1 - though unlikely with somatic data
                         continue
                     sbs96 = get_sbs96(record, sequence_lookup)
@@ -268,7 +272,13 @@ def load_sbs52_counts(
     sample_name: str = None,
 ) -> Dict[str, int]:
     count_per_sbs52 = defaultdict(lambda: 0)
-    count_per_sbs96 = load_sbs96_counts(vcf_path, ref_fasta_path, target_path, is_sample_reference_sample)
+    count_per_sbs96 = load_sbs96_counts(
+        vcf_path,
+        ref_fasta_path,
+        target_path,
+        is_sample_reference_sample,
+        sample_name=sample_name,
+    )
     for sbs96 in SBS96_CLASSIFICATION:
         count_per_sbs52[SBS96_TO_SBS52[sbs96]] += count_per_sbs96[sbs96]
     return dict(count_per_sbs52)

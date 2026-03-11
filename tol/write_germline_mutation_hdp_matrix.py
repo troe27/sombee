@@ -9,6 +9,14 @@ import sys
 
 import natsort
 
+SBS52_COLUMNS = [
+    "C>A,A-C", "C>A,A-T", "C>A,C-A", "C>A,C-C", "C>A,C-G", "C>A,C-T", "C>A,G-C", "C>A,T-A", "C>A,T-C", "C>A,T-T",
+    "C>G,A-C", "C>G,A-T", "C>G,C-A", "C>G,C-C", "C>G,C-G", "C>G,C-T", "C>G,G-C", "C>G,T-A", "C>G,T-C", "C>G,T-T",
+    "C>T,A-A", "C>T,A-C", "C>T,A-G", "C>T,A-T", "C>T,C-A", "C>T,C-C", "C>T,C-G", "C>T,C-T", "C>T,G-A", "C>T,G-C", "C>T,G-G", "C>T,G-T", "C>T,T-A", "C>T,T-C", "C>T,T-G", "C>T,T-T",
+    "T>A,A-C", "T>A,A-T", "T>A,C-A", "T>A,C-C", "T>A,C-G", "T>A,C-T", "T>A,G-C", "T>A,T-A", "T>A,T-C", "T>A,T-T",
+    "T>G,A-C", "T>G,C-A", "T>G,C-C", "T>G,C-T", "T>G,T-C", "T>G,T-T",
+]
+
 
 def parse_args(args):
     parser = argparse.ArgumentParser(
@@ -69,8 +77,8 @@ def write_hdp_matrix(input_path: Path, sample_path: Path, output_path: Path):
 
     # Aggregate counts
     sample_sbs52_counts = {}
-    sbs52_classifications = set()
     matched_samples = set()
+    observed_classes = set()
 
     for file_path_str in file_paths:
         file_path = Path(file_path_str)
@@ -104,21 +112,22 @@ def write_hdp_matrix(input_path: Path, sample_path: Path, output_path: Path):
 
                 upstream, _, downstream = tri
                 sbs52 = f"{sub},{upstream}-{downstream}"
+                if sbs52 not in SBS52_COLUMNS:
+                    raise ValueError(f"Unrecognized SBS52 channel '{sbs52}' in {file_path}")
 
                 sample_sbs52_counts[f"{query_sample}:{sbs52}"] = count
-                sbs52_classifications.add(sbs52)
+                observed_classes.add(sbs52)
 
-    sbs52_classifications = natsort.natsorted(list(sbs52_classifications))
     output_samples = natsort.natsorted(list(target_samples))
 
     # Write CSV matrix
     with open(output_path, "w") as outfile:
-        outfile.write(",".join(["sample"] + sbs52_classifications) + "\n")
+        outfile.write(",".join(["sample"] + SBS52_COLUMNS) + "\n")
 
         for sample in output_samples:
             row_values = [sample] + [
                 str(math.ceil(float(sample_sbs52_counts.get(f"{sample}:{sbs52}", 0))))
-                for sbs52 in sbs52_classifications
+                for sbs52 in SBS52_COLUMNS
             ]
             outfile.write(",".join(row_values) + "\n")
 
@@ -126,7 +135,7 @@ def write_hdp_matrix(input_path: Path, sample_path: Path, output_path: Path):
     missing_samples = sorted(target_samples - matched_samples)
     print(f"Loaded {len(file_paths)} input files", file=sys.stderr)
     print(f"Matched {len(matched_samples)} / {len(target_samples)} requested samples", file=sys.stderr)
-    print(f"Found {len(sbs52_classifications)} SBS52 classes", file=sys.stderr)
+    print(f"Observed {len(observed_classes)} / {len(SBS52_COLUMNS)} SBS52 classes", file=sys.stderr)
     print(f"Wrote matrix to: {output_path}", file=sys.stderr)
 
     if missing_samples:
