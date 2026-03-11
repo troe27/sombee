@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=hdp_test
+#SBATCH --account=UPPMAX2025-2-481
+#SBATCH --cpus-per-task=8
+#SBATCH --time=08:00:00
+#SBATCH --output=logs/hdp_%A_%a.out
+#SBATCH --error=logs/hdp_%A_%a.err
+
+mamba_env="tol3.9"
+infile="./germ.test.sbs52.files.txt"
+samplefile="./test20.germ.samples.txt"
+#outdir="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/hdp"
+outdir="."
+outfile=${outdir}"/test.germ.hdp.csv"
+
+mkdir -p ${outdir}
+mkdir -p logs
+mamba run -n $mamba_env \
+      python ./write_germline_mutation_hdp_matrix.py \
+             --input $infile \
+             --samples $samplefile \
+             --output  $outfile
