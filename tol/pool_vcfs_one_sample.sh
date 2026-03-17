@@ -18,24 +18,22 @@ collect_bgzip_index() {
   local in="$1"
   local base
   base="$(basename "$in")"
-  local out="${TMPDIR}/${base}"
+  local staged="${TMPDIR}/${base}"
+  local out
 
   if [[ "$in" == *.vcf.gz ]]; then
-    cp "$in" "$out"
-    if [[ -f "${in}.tbi" ]]; then
-      cp "${in}.tbi" "${out}.tbi"
-    elif [[ -f "${in}.csi" ]]; then
-      cp "${in}.csi" "${out}.csi"
-    else
-      bcftools index -t "$out"
-    fi
+    cp "$in" "$staged"
   elif [[ "$in" == *.vcf ]]; then
-    out="${out}.gz"
-    bgzip -c "$in" > "$out"
-    bcftools index -t "$out"
+    staged="${staged}.gz"
+    bgzip -c "$in" > "$staged"
   else
     return 0
   fi
+
+  out="${TMPDIR}/sorted_${base%.vcf.gz}.vcf.gz"
+  out="${out%.vcf.vcf.gz}.vcf.gz"
+  bcftools sort -Oz -o "$out" "$staged"
+  bcftools index -t "$out"
 
   echo "$out"
 }
