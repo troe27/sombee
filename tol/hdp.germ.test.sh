@@ -24,16 +24,16 @@ mkdir -p "$OUTPUT_DIR/results"
 
 CHAIN_PREFIX="$OUTPUT_DIR/chains/${PREFIX}_chain_"
 
-#echo "Running $CHAINS HDP chains..."
+echo "Running $CHAINS HDP chains..."
 
-#for i in $(seq 1 $CHAINS); do
-#    echo "Running chain $i"
-#    
-#    mamba run -n tol3.9 Rscript ${script_loc}/hdp_noprior_SBS52.R \
-#        "$INPUT_MATRIX" \
-#        "$i" \
-#        "$CHAIN_PREFIX"
-#done
+for i in $(seq 1 $CHAINS); do
+    echo "Running chain $i"
+    
+    mamba run -n tol3.9 Rscript ${script_loc}/hdp_noprior_SBS52.R \
+        "$INPUT_MATRIX" \
+        "$i" \
+        "$CHAIN_PREFIX"
+done
 
 echo "Running extraction step..."
 
