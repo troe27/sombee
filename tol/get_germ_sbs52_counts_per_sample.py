@@ -204,17 +204,19 @@ def load_chroms(target_path: Path) -> List[str]:
 
 def get_sbs96(record: pysam.VariantRecord, reference_sequence_lookup: pysam.FastaFile) -> str:
     trinucleotide = reference_sequence_lookup.fetch(record.chrom, record.pos - 2, record.pos + 1)
-    if record.ref in PUR:
+    ref = record.ref.upper()
+    alt = record.alts[0].upper()
+    if ref in PUR:
         ubase, _, dbase = trinucleotide[::-1]
         sbs96 = "{}[{}>{}]{}".format(
             PUR_TO_PYR_LOOKUP.get(ubase, "N"),
-            PUR_TO_PYR_LOOKUP.get(record.ref, "N"),
-            PUR_TO_PYR_LOOKUP.get(record.alts[0], "N"),
+            PUR_TO_PYR_LOOKUP.get(ref, "N"),
+            PUR_TO_PYR_LOOKUP.get(alt, "N"),
             PUR_TO_PYR_LOOKUP.get(dbase, "N"),
         )
     else:
         ubase, _, dbase = trinucleotide
-        sbs96 = "{}[{}>{}]{}".format(ubase, record.ref, record.alts[0], dbase)
+        sbs96 = "{}[{}>{}]{}".format(ubase, ref, alt, dbase)
     return sbs96
 
 

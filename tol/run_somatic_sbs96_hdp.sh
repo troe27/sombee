@@ -4,18 +4,20 @@ set -euo pipefail
 module load R/4.4.2-gfbf-2024a
 export R_LIBS_USER="${HOME}/Rlibs"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-INPUT_MATRIX="${1:-${SCRIPT_DIR}/../test-data/tab10_raw_somatic_mutcount_tol.plus_batch3_batch4.hdp.tsv}"
-OUTPUT_DIR="${2:-${SCRIPT_DIR}/../test-data/somatic_sbs96_hdp}"
-PREFIX="${3:-batch3_batch4.somatic.sbs96}"
-CHAINS="${4:-10}"
+INPUT_MATRIX="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/tab10_raw_somatic_mutcount_tol.plus_batch3_batch4.hdp.tsv"
+OUTPUT_DIR="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/somatic_sbs96_hdp"
+PREFIX="batch3_batch4.somatic.sbs96"
+CHAINS=10
 
-HDP_CHAIN_SCRIPT="${SCRIPT_DIR}/gpt-ref-tol/treeoflife/code/hdp_noprior_SBS96.R"
-HDP_EXTRACT_SCRIPT="${SCRIPT_DIR}/gpt-ref-tol/treeoflife/code/hdp_extraction_SBS96.R"
+
+HDP_CHAIN_SCRIPT="./hdp_noprior_SBS96.R"
+HDP_EXTRACT_SCRIPT="./hdp_extraction_SBS96.R"
 
 mkdir -p "${OUTPUT_DIR}/chains"
 mkdir -p "${OUTPUT_DIR}/results"
+
+
 
 CHAIN_PREFIX="${OUTPUT_DIR}/chains/${PREFIX}_chain_"
 
