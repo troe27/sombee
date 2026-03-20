@@ -11,10 +11,12 @@ set -euo pipefail
 module load R/4.4.2-gfbf-2024a
 export R_LIBS_USER=$HOME/Rlibs
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # -------- SETTINGS --------
-INPUT_MATRIX=./test.germ.hdp.csv
+INPUT_MATRIX="${ROOT_DIR}/test.germ.hdp.csv"
 OUTPUT_DIR=/home/tilman/bees1/private/tilman/nanoseq_batch4/data/hdp_chains
-script_loc=.
+SCRIPT_DIR="${ROOT_DIR}/scripts"
 PREFIX=test20.germ.hdp_
 
 CHAINS=10
@@ -29,7 +31,7 @@ echo "Running $CHAINS HDP chains..."
 for i in $(seq 1 $CHAINS); do
     echo "Running chain $i"
     
-    mamba run -n tol3.9 Rscript ${script_loc}/hdp_noprior_SBS52.R \
+    mamba run -n tol3.9 Rscript "${SCRIPT_DIR}/hdp_germline_sbs52.R" \
         "$INPUT_MATRIX" \
         "$i" \
         "$CHAIN_PREFIX"
@@ -37,7 +39,7 @@ done
 
 echo "Running extraction step..."
 
-mamba run -n tol3.9 Rscript ${script_loc}/hdp_extraction_SBS52.R \
+mamba run -n tol3.9 Rscript "${SCRIPT_DIR}/extract_germline_sbs52.R" \
     "$CHAIN_PREFIX" \
     "$INPUT_MATRIX" \
     "$OUTPUT_DIR/results" \

@@ -13,4 +13,4 @@ VCF="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/BetterB_Batch1_2_3_fu
 REF="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/GCF_003254395.2_Amel_HAv3.1_genomic.BetterB_majorAllele.fna"
 OUT="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/BetterB_Batch1_2_3_full_geno_HQ.major_allele_relative.sbs96.tsv}"
 
-mamba run -n tol3.9 python "get_sbs96_counts.py" -i "${VCF}" --ref-fasta "${REF}" -o "${OUT}"
+mamba run -n tol3.9 python "${SCRIPT_DIR}/scripts/count_somatic_sbs96.py" -i "${VCF}" --ref-fasta "${REF}" -o "${OUT}"

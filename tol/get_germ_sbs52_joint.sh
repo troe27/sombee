@@ -10,4 +10,4 @@ VCF_IN="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/BetterB_Batch1_2_3
 REF="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/somatic_aux_data/ref/GCF_003254395.2_Amel_HAv3.1_genomic.fna"
 OUT_TSV="/home/tilman/bees1/private/tilman/nanoseq_batch4/data/germ_sbs52_counts.joint.tsv"
 
-mamba run -n tol3.9 python get_germ_sbs52_counts_per_sample.py -i ${VCF_IN} --ref-fasta ${REF}  -o ${OUT_TSV}
+mamba run -n tol3.9 python scripts/count_germline_sbs52.py -i ${VCF_IN} --ref-fasta ${REF}  -o ${OUT_TSV}
