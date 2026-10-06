@@ -18,7 +18,7 @@ Analysis code for measuring somatic mutation rates in honeybees (*Apis mellifera
    -  builds the annotated variant tables from NanoSeq output.
    -  positive-unlabelled classifier (Elkan–Noto)/Random Forest ensemble to rate somatic variants on likelihood to be false positive - use with threshold from variant saturation discovery as cutoff
      
-6. **`tol/`**: mutational signatures (SBS52 germline, SBS96 somatic) and HDP extraction using the treeoflife code. See `tol/docs/readme.md`.
+4. **`tol/`**: mutational signatures (SBS52 germline, SBS96 somatic) and HDP extraction using the treeoflife code. See `tol/docs/readme.md`.
 
 ## Setup
 
