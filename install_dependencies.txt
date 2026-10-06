@@ -12,7 +12,7 @@ bash Miniforge3-$(uname)-$(uname -m).sh
 
 ## install Dupcaller and its dependencies
 ### dupcaller
-cd Dupcaller
+cd DupCaller
 python setup.py install
 ### dependencies
 mamba install h5py
@@ -21,6 +21,21 @@ mamba install matplotlib
 mamba install pandas
 mamba install -c bioconda pysam
 mamba install scipy
+
+# analysis environment (downstream_processing/, correction/, tol/ python scripts, notebooks)
+mamba create -n sombee python=3.11
+mamba activate sombee
+mamba install numpy pandas scipy matplotlib seaborn statsmodels scikit-learn natsort biopython jupyterlab
+mamba install -c bioconda cyvcf2 pysam bcftools htslib   # htslib provides bgzip and tabix
+pip install pulearn   # PU learning (correction/002_PU_learn.ipynb)
+
+# link the data folder (gitignored)
+cd sombee
+ln -s ../sombee_data data
+
+# R packages for the HDP signature scripts (tol/scripts/*.R): ggplot2, RColorBrewer, lsa, lattice, hdp
+# on the cluster: bash tol/install_r_libraries.sh (expects the hdp source in ./hdp)
+# on the cluster, bcftools comes from: module load BCFtools
 
 # install treeoflife repo
 mamba create -n tol3.9 python=3.9

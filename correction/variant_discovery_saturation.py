@@ -1,7 +1,9 @@
 from cyvcf2 import VCF
 import pandas as pd
 import numpy as np
-from typing import List, Set, Tuple, Optional
+import matplotlib.pyplot as plt
+from multiprocessing import Pool, cpu_count
+from typing import List, Set, Tuple, Optional, Dict
 from scipy.optimize import curve_fit
 
 
@@ -202,10 +204,78 @@ def run_discovery_iter(matrix: np.ndarray, n_iter: int) -> list():
     return meanarr, disc_arr
 
 
+def _process_chrom(args):
+    """Worker: process all variants from one chromosome."""
+    vcf_path, chrom, permutations, n_samples, n_iter = args
+    vcf = VCF(vcf_path, gts012=True)
+    
+    disc_arr = np.zeros((n_iter, n_samples), dtype=np.int64)
+
+    for variant in vcf(chrom):  # iterate only variants on this chromosome
+        carriers = np.where((variant.gt_types == 1) | (variant.gt_types == 2))[0]
+        if carriers.size == 0:
+            continue
+        for it, order in enumerate(permutations):
+            first_pos = np.min(np.where(np.isin(order, carriers)))
+            disc_arr[it, first_pos:] += 1
+    return disc_arr
+
+
+def compute_discovery_curve_vcf(vcf_path, n_iter=100, threads=None, seed=42, chrom=None):
+    """
+    Compute discovery curves by streaming genotypes from a VCF, per chromosome.
+    
+    Args:
+        vcf_path (str): Path to VCF/BCF file.
+        n_iter (int): Number of random permutations.
+        threads (int): Number of worker processes (defaults to CPU count).
+        seed (int): Random seed.
+        chrom (str or None): If given, restrict processing to this chromosome only.
+        
+    Returns:
+        meanarr (np.ndarray): (n_samples, 2) [samples added, mean variants discovered]
+        disc_arr (np.ndarray): (n_iter, n_samples) with all discovery curves
+    """
+    vcf = VCF(vcf_path, gts012=True)
+    n_samples = len(vcf.samples)
+    
+    rng = np.random.default_rng(seed)
+    permutations = [rng.permutation(n_samples) for _ in range(n_iter)]
+    
+    if chrom is not None:
+        # Just one chromosome
+        chroms = [chrom]
+    else:
+        # All contigs
+        chroms = list(vcf.seqnames)
+    
+    if threads is None:
+        threads = cpu_count()
+    
+    # Prepare args for workers
+    tasks = [(vcf_path, c, permutations, n_samples, n_iter) for c in chroms]
+    
+    if len(tasks) == 1:
+        # Single-threaded path
+        results = [_process_chrom(tasks[0])]
+    else:
+        with Pool(processes=threads) as pool:
+            results = pool.map(_process_chrom, tasks)
+    
+    # Combine chromosome results
+    disc_arr = np.sum(results, axis=0)
+    
+    # Mean curve
+    mean_curve = disc_arr.mean(axis=0)
+    meanarr = np.column_stack([np.arange(1, n_samples+1), mean_curve])
+    
+    return meanarr, disc_arr
+
+
 def fit_saturation_curve(
     data: np.ndarray,
     fit: str,
-    bounds: Optional[dict[str, Tuple[Tuple[float, ...], Tuple[float, ...]]]] = None
+    bounds: Optional[Dict[str, Tuple[Tuple[float, ...], Tuple[float, ...]]]] = None
 ) -> Tuple[float, ...]:
     """
     Fit a discovery saturation model to cumulative variant data.
@@ -230,10 +300,10 @@ def fit_saturation_curve(
 
     # ---- default bounds ----
     default_bounds = {
-        "mm": ((0, 0), (1e6, 1e4)),
-        "ne": ((0, 0), (1e6, 1.0)),
-        "hs": ((0, 0, 0), (1e7, 1.0, 1e4)),   # c upper bound increased to 1e4
-        "hp": ((0, 0, 0, 0), (1e7, 1.0, 1e4, 1.0)),  # alpha constrained [0,1]
+        "mm": ((0, 0), (1e10, 1e10)),
+        "ne": ((0, 0), (1e7, 1.0)),
+        "hs": ((0, 0, 0), (1e8, 1.0, 1e5)),
+        "hp": ((0, 0, 0, 0), (1e8, 1.0, 1e6, 1.0)),  # alpha constrained [0,1]
     }
 
     # pick bounds (user-supplied overrides defaults)
@@ -249,7 +319,7 @@ def fit_saturation_curve(
         return tuple(popt)
 
     elif fit == 'ne':
-        p0 = [max(y), 0.05]
+        p0 = [min(max(y), 1e6), 0.05]  # clip to upper bound
         popt, _ = curve_fit(neg_exponential, x, y, p0=p0, bounds=(lower, upper))
         return tuple(popt)
 
