@@ -103,3 +103,11 @@ build/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Data
+/data
+
+# Figures
+*.png
+*.pdf
+*.svg
