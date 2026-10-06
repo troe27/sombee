@@ -3,14 +3,12 @@
 Analysis code for measuring somatic mutation rates in honeybees (*Apis mellifera*) with NanoSeq duplex sequencing.
 
 
-
-
 1. **`dupcaller_workflow/`**:
 
-- fastq2vcf using Dupcaller including slurm setup
-- Importable functions for handling and formating the output of Dupcaller in dupIO.py
+- fastq2vcf using DupCaller including slurm setup
+- Importable functions for handling and formatting the output of DupCaller in dupIO.py
 
-2. **`downstream_processing/`**: filters for somatic calls - output of the NanoSeq pipeline: germline overlap, discarded sites  double variants , variants within repeats. Import as `downstream_processing`,
+2. **`downstream_processing/`**: filters for somatic calls - output of the NanoSeq pipeline: germline overlap, discarded sites,  double variants, variants within repeats. Import as `downstream_processing`,
    
 3. **`correction/`**: False-positive correction.
     - Estimate completeness of reference germline VCF using variant discovery saturation
